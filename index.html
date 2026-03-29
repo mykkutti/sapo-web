@@ -112,54 +112,6 @@
       nameFontSize: 9,
     };
 
-    // 선수 현재 애니메이션 위치 (lerp용)
-    const animPos = {};
-    const LERP_SPEED = 0.35;
-    let animCanvas = null;
-    let animRunning = false;
-    let latestFieldPlayers = [];
-
-    function updateTargets(fieldPlayers) {
-      latestFieldPlayers = fieldPlayers;
-      for (const p of fieldPlayers) {
-        if (p.positionX == null || p.positionY == null) continue;
-        if (!animPos[p.id]) {
-          animPos[p.id] = { x: p.positionX, y: p.positionY };
-        }
-        animPos[p.id].tx = p.positionX;
-        animPos[p.id].ty = p.positionY;
-      }
-      if (!animRunning && animCanvas) {
-        animRunning = true;
-        requestAnimationFrame(animLoop);
-      }
-    }
-
-    function animLoop() {
-      if (!animCanvas) { animRunning = false; return; }
-      let needsMore = false;
-      for (const id in animPos) {
-        const a = animPos[id];
-        if (a.tx == null) continue;
-        const dx = a.tx - a.x;
-        const dy = a.ty - a.y;
-        if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
-          a.x += dx * LERP_SPEED;
-          a.y += dy * LERP_SPEED;
-          needsMore = true;
-        } else {
-          a.x = a.tx;
-          a.y = a.ty;
-        }
-      }
-      drawField(animCanvas, latestFieldPlayers);
-      if (needsMore) {
-        requestAnimationFrame(animLoop);
-      } else {
-        animRunning = false;
-      }
-    }
-
     function drawField(canvas, fieldPlayers) {
       const dpr = window.devicePixelRatio || 1;
       const cssW = canvas.parentElement.clientWidth;
@@ -217,13 +169,11 @@
       ctx.strokeRect(ccx - gaw / 2, fy, gaw, gah);
       ctx.strokeRect(ccx - gaw / 2, fy + fh - gah, gaw, gah);
 
-      // 선수 토큰 (애니메이션 위치 사용)
+      // 선수 토큰
       for (const p of fieldPlayers) {
         if (p.positionX == null || p.positionY == null) continue;
-        const a = animPos[p.id];
-        if (!a) continue;
-        const px = fx + a.x * fw;
-        const py = fy + a.y * fh;
+        const px = fx + p.positionX * fw;
+        const py = fy + p.positionY * fh;
         const r = TOKEN.radius;
 
         ctx.fillStyle = p.isTemp ? TOKEN.tempBgColor : TOKEN.bgColor;
@@ -313,11 +263,7 @@
 
       // 필드 렌더링 (애니메이션)
       const canvas = document.getElementById('field');
-      if (canvas) {
-        animCanvas = canvas;
-        updateTargets(starting);
-        drawField(canvas, starting);
-      }
+      if (canvas) drawField(canvas, starting);
     }
   </script>
 </body>
