@@ -4,7 +4,7 @@
     "details": [
       {
         "appID": "TEAMID.mykkutti.sapo",
-        "paths": ["/sapo/lineup/*"]
+        "paths": ["/sapo-web/lineup/*"]
       }
     ]
   }
