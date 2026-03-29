@@ -112,6 +112,54 @@
       nameFontSize: 9,
     };
 
+    // 선수 현재 애니메이션 위치 (lerp용)
+    const animPos = {};
+    const LERP_SPEED = 0.12;
+    let animCanvas = null;
+    let animRunning = false;
+    let latestFieldPlayers = [];
+
+    function updateTargets(fieldPlayers) {
+      latestFieldPlayers = fieldPlayers;
+      for (const p of fieldPlayers) {
+        if (p.positionX == null || p.positionY == null) continue;
+        if (!animPos[p.id]) {
+          animPos[p.id] = { x: p.positionX, y: p.positionY };
+        }
+        animPos[p.id].tx = p.positionX;
+        animPos[p.id].ty = p.positionY;
+      }
+      if (!animRunning && animCanvas) {
+        animRunning = true;
+        requestAnimationFrame(animLoop);
+      }
+    }
+
+    function animLoop() {
+      if (!animCanvas) { animRunning = false; return; }
+      let needsMore = false;
+      for (const id in animPos) {
+        const a = animPos[id];
+        if (a.tx == null) continue;
+        const dx = a.tx - a.x;
+        const dy = a.ty - a.y;
+        if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
+          a.x += dx * LERP_SPEED;
+          a.y += dy * LERP_SPEED;
+          needsMore = true;
+        } else {
+          a.x = a.tx;
+          a.y = a.ty;
+        }
+      }
+      drawField(animCanvas, latestFieldPlayers);
+      if (needsMore) {
+        requestAnimationFrame(animLoop);
+      } else {
+        animRunning = false;
+      }
+    }
+
     function drawField(canvas, fieldPlayers) {
       const dpr = window.devicePixelRatio || 1;
       const cssW = canvas.parentElement.clientWidth;
@@ -136,8 +184,6 @@
       // 필드 라인
       ctx.strokeStyle = FIELD.lineColor;
       ctx.lineWidth = FIELD.lineWidth;
-
-      // 외곽선
       ctx.strokeRect(fx, fy, fw, fh);
 
       // 하프라인
@@ -147,56 +193,50 @@
       ctx.stroke();
 
       // 센터 서클
-      const cx = fx + fw / 2;
-      const cy = fy + fh / 2;
+      const ccx = fx + fw / 2;
+      const ccy = fy + fh / 2;
       ctx.beginPath();
-      ctx.arc(cx, cy, fw * FIELD.centerCircleRadius, 0, Math.PI * 2);
+      ctx.arc(ccx, ccy, fw * FIELD.centerCircleRadius, 0, Math.PI * 2);
       ctx.stroke();
 
       // 센터 도트
       ctx.fillStyle = FIELD.lineColor;
       ctx.beginPath();
-      ctx.arc(cx, cy, FIELD.centerDotRadius, 0, Math.PI * 2);
+      ctx.arc(ccx, ccy, FIELD.centerDotRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      // 페널티 박스 (상단)
+      // 페널티 박스
       const pbw = fw * FIELD.penaltyBoxWidth;
       const pbh = fh * FIELD.penaltyBoxHeight;
-      ctx.strokeRect(cx - pbw / 2, fy, pbw, pbh);
+      ctx.strokeRect(ccx - pbw / 2, fy, pbw, pbh);
+      ctx.strokeRect(ccx - pbw / 2, fy + fh - pbh, pbw, pbh);
 
-      // 골 에어리어 (상단)
+      // 골 에어리어
       const gaw = fw * FIELD.goalAreaWidth;
       const gah = fh * FIELD.goalAreaHeight;
-      ctx.strokeRect(cx - gaw / 2, fy, gaw, gah);
+      ctx.strokeRect(ccx - gaw / 2, fy, gaw, gah);
+      ctx.strokeRect(ccx - gaw / 2, fy + fh - gah, gaw, gah);
 
-      // 페널티 박스 (하단)
-      ctx.strokeRect(cx - pbw / 2, fy + fh - pbh, pbw, pbh);
-
-      // 골 에어리어 (하단)
-      ctx.strokeRect(cx - gaw / 2, fy + fh - gah, gaw, gah);
-
-      // 선수 토큰
+      // 선수 토큰 (애니메이션 위치 사용)
       for (const p of fieldPlayers) {
         if (p.positionX == null || p.positionY == null) continue;
-        const px = fx + p.positionX * fw;
-        const py = fy + p.positionY * fh;
+        const a = animPos[p.id];
+        if (!a) continue;
+        const px = fx + a.x * fw;
+        const py = fy + a.y * fh;
         const r = TOKEN.radius;
 
-        // 원
         ctx.fillStyle = p.isTemp ? TOKEN.tempBgColor : TOKEN.bgColor;
         ctx.beginPath();
         ctx.arc(px, py, r, 0, Math.PI * 2);
         ctx.fill();
 
-        // 등번호
         ctx.fillStyle = TOKEN.textColor;
         ctx.font = `bold ${TOKEN.numberFontSize}px -apple-system, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const numText = p.number != null ? String(p.number) : '--';
-        ctx.fillText(numText, px, py - 2);
+        ctx.fillText(p.number != null ? String(p.number) : '--', px, py - 2);
 
-        // 이름
         ctx.font = `${TOKEN.nameFontSize}px -apple-system, sans-serif`;
         ctx.fillStyle = 'rgba(255,255,255,0.85)';
         const name = p.name.length > 6 ? p.name.slice(0, 5) + '…' : p.name;
@@ -271,9 +311,13 @@
         <div class="footer">사포 — 축구 라인업 관리</div>
       `;
 
-      // 필드 렌더링
+      // 필드 렌더링 (애니메이션)
       const canvas = document.getElementById('field');
-      if (canvas) drawField(canvas, starting);
+      if (canvas) {
+        animCanvas = canvas;
+        updateTargets(starting);
+        drawField(canvas, starting);
+      }
     }
   </script>
 </body>
