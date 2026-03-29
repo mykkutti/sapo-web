@@ -62,7 +62,7 @@
       history.replaceState(null, '', stored);
     }
 
-    const path = window.location.pathname;
+    const path = stored || window.location.pathname;
     const match = path.match(/\/lineup\/([^/]+)/);
     const code = match ? match[1] : null;
     const app = document.getElementById('app');
