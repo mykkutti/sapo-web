@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <script>
+    // GitHub Pages SPA fallback
+    // /sapo/lineup/12345 → /sapo/ 로 redirect하면서 원래 경로를 sessionStorage에 저장
+    sessionStorage.setItem('spa-path', window.location.pathname);
+    var base = '/sapo/';
+    window.location.replace(base);
+  </script>
+</head>
+<body></body>
+</html>

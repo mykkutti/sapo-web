@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TEAMID.mykkutti.sapo",
+        "paths": ["/sapo/lineup/*"]
+      }
+    ]
+  }
+}

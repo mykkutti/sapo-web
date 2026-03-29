@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>사포 - 경기 라인업</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; color: #111827; min-height: 100vh; }
+    .container { max-width: 420px; margin: 0 auto; padding: 16px; }
+    .loading { text-align: center; padding: 80px 0; color: #9ca3af; font-size: 16px; }
+    .error { text-align: center; padding: 80px 20px; }
+    .error h2 { font-size: 18px; color: #374151; margin-bottom: 8px; }
+    .error p { color: #9ca3af; font-size: 14px; }
+
+    /* 헤더 */
+    .header { text-align: center; padding: 20px 0 16px; }
+    .header h1 { font-size: 22px; font-weight: 700; }
+    .header .sub { font-size: 14px; color: #6b7280; margin-top: 4px; }
+
+    /* 경기 정보 */
+    .match-info { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 12px 16px; margin-bottom: 12px; font-size: 14px; color: #166534; }
+
+    /* 출석 현황 */
+    .attendance { display: flex; gap: 12px; justify-content: center; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 10px 16px; margin-bottom: 16px; font-size: 13px; font-weight: 700; }
+    .att-attending { color: #059669; }
+    .att-hold { color: #6b7280; }
+    .att-absent { color: #dc2626; }
+    .att-pending { color: #d97706; }
+
+    /* 선수 섹션 */
+    .section { margin-bottom: 16px; }
+    .section-title { font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; }
+    .section-title.dim { color: #9ca3af; }
+    .player-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .player { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 500; }
+    .player.starting { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+    .player.sub { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+    .player.dim { opacity: 0.5; }
+
+    /* CTA */
+    .cta { text-align: center; padding: 24px 0 16px; }
+    .open-app { display: inline-block; background: #2563eb; color: #fff; font-size: 16px; font-weight: 700; padding: 14px 32px; border-radius: 12px; text-decoration: none; }
+    .open-app:active { background: #1d4ed8; }
+    .store-links { margin-top: 16px; display: flex; justify-content: center; gap: 16px; font-size: 13px; }
+    .store-links a { color: #6b7280; text-decoration: underline; }
+
+    /* 푸터 */
+    .footer { text-align: center; padding: 24px 0; font-size: 12px; color: #9ca3af; }
+  </style>
+</head>
+<body>
+  <div class="container" id="app">
+    <div class="loading" id="loading">로딩 중...</div>
+  </div>
+
+  <script type="module">
+    import { init, i } from 'https://esm.sh/@instantdb/core@0.22.169';
+
+    // GitHub Pages SPA: sessionStorage에서 원래 경로 복원
+    const stored = sessionStorage.getItem('spa-path');
+    if (stored) {
+      sessionStorage.removeItem('spa-path');
+      history.replaceState(null, '', stored);
+    }
+
+    // URL에서 code 추출
+    const path = window.location.pathname;
+    const match = path.match(/\/lineup\/([^/]+)/);
+    const code = match ? match[1] : null;
+
+    const app = document.getElementById('app');
+
+    if (!code) {
+      app.innerHTML = `
+        <div class="error">
+          <h2>참가코드가 필요합니다</h2>
+          <p>공유받은 링크로 접속해주세요</p>
+        </div>`;
+    } else {
+      const db = init({
+        appId: '270b0c68-1f89-4454-925e-cfa11f77c380',
+      });
+
+      db.subscribeQuery(
+        { lineups: { $: { where: { code } }, players: { attendances: {} }, attendances: {} } },
+        (result) => {
+          if (result.error) {
+            app.innerHTML = `<div class="error"><h2>오류가 발생했습니다</h2><p>${result.error.message || ''}</p></div>`;
+            return;
+          }
+          const lineup = result.data?.lineups?.[0];
+          if (!lineup) {
+            app.innerHTML = `
+              <div class="error">
+                <h2>경기를 찾을 수 없어요</h2>
+                <p>코드: ${code}</p>
+              </div>`;
+            return;
+          }
+          render(lineup);
+        }
+      );
+    }
+
+    function render(lineup) {
+      const players = lineup.players || [];
+
+      // 보류 선수 ID
+      const holdIds = new Set(
+        players.filter(p => (p.attendances || [])[0]?.response === 'hold').map(p => p.id)
+      );
+
+      const starting = players.filter(p => p.status === 'starting');
+      const sub = players.filter(p => p.status === 'sub');
+      const hold = players.filter(p => p.status === 'none' && holdIds.has(p.id));
+      const none = players.filter(p => p.status === 'none' && !holdIds.has(p.id));
+      const absent = players.filter(p => p.status === 'unavailable');
+
+      // 출석 현황
+      const atts = lineup.attendances || [];
+      const attCount = {
+        attending: atts.filter(a => a.response === 'attending').length,
+        hold: atts.filter(a => a.response === 'hold').length,
+        absent: atts.filter(a => a.response === 'absent').length,
+        pending: atts.filter(a => a.response === 'pending').length,
+      };
+      const hasAttendance = atts.length > 0;
+
+      const playerTag = (p, cls) => {
+        const num = p.number != null ? `${p.number}. ` : '';
+        return `<span class="player ${cls}">${num}${p.name}</span>`;
+      };
+
+      const section = (title, list, cls, dim) => {
+        if (list.length === 0) return '';
+        return `
+          <div class="section">
+            <div class="section-title ${dim ? 'dim' : ''}">${title} ${list.length}</div>
+            <div class="player-list">${list.map(p => playerTag(p, cls)).join('')}</div>
+          </div>`;
+      };
+
+      let matchHtml = '';
+      if (lineup.matchLocation || lineup.matchDate) {
+        const parts = [];
+        if (lineup.matchLocation) parts.push(lineup.matchLocation);
+        if (lineup.matchDate) parts.push(new Date(lineup.matchDate).toLocaleDateString('ko-KR'));
+        matchHtml = `<div class="match-info">${parts.join(' · ')}</div>`;
+      }
+
+      let attHtml = '';
+      if (hasAttendance) {
+        attHtml = `
+          <div class="attendance">
+            <span class="att-attending">참석 ${attCount.attending}</span>
+            <span class="att-hold">보류 ${attCount.hold}</span>
+            <span class="att-absent">불참 ${attCount.absent}</span>
+            <span class="att-pending">미응답 ${attCount.pending}</span>
+          </div>`;
+      }
+
+      const deepLink = `sapo://lineup/${code}`;
+
+      app.innerHTML = `
+        <div class="header">
+          <h1>${lineup.name || code}</h1>
+          <div class="sub">${code} · ${lineup.formation}</div>
+        </div>
+        ${matchHtml}
+        ${attHtml}
+        ${section('선발', starting, 'starting', false)}
+        ${section('교체명단', sub, 'sub', false)}
+        ${section('보류', hold, 'dim', true)}
+        ${section('미확인', none, 'dim', true)}
+        ${section('불참', absent, 'dim', true)}
+        <div class="cta">
+          <a class="open-app" href="${deepLink}">앱에서 열기</a>
+          <div class="store-links">
+            <a href="#">App Store</a>
+            <a href="#">Google Play</a>
+          </div>
+        </div>
+        <div class="footer">사포 — 축구 라인업 관리</div>
+      `;
+    }
+  </script>
+</body>
+</html>
